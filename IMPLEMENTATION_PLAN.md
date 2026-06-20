@@ -167,7 +167,7 @@ kagent-n8n/
 Each task is independently implementable and verifiable. Dependencies are tracked in SQL.
 Check off each box (`[ ]` → `[x]`) as a task is completed so the Ralph loop knows what's done.
 
-1. [ ] **scaffold-repo** — Create directory layout, `.env.example`, `README` skeleton,
+1. [x] **scaffold-repo** — Create directory layout, `.env.example`, `README` skeleton,
    `Makefile` stub with placeholder targets, `scripts/lib.sh` with idempotent
    helpers (`have_cmd`, `wait_for`, `log`) **and a `uname`-based OS layer**
    (`detect_os` → linux/wsl2/macos, `detect_arch`, portable `sed_inplace`/`grep`
