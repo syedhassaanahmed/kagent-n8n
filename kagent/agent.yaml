@@ -6,8 +6,9 @@
 # (AGENT_NAME, AGENT_NAMESPACE, MODELCONFIG_NAME).
 #
 # A deliberately tool-less, conversational agent: it just answers over A2A,
-# which is the most reliable way to prove n8n <-> kagent A2A communication with
-# a tiny local model. Swap in a richer LLM via .env to add tool use later.
+# which is the most reliable way to prove A2A communication (n8n is the client
+# in this demo, but any A2A-capable caller works) with a tiny local model.
+# Swap in a richer LLM via .env to add tool use later.
 # ===========================================================================
 apiVersion: kagent.dev/v1alpha2
 kind: Agent
@@ -20,12 +21,14 @@ spec:
     modelConfig: ${MODELCONFIG_NAME}
     systemMessage: |
       You are "A2A Demo Agent", a friendly assistant reachable over the A2A
-      (Agent-to-Agent) protocol from an n8n workflow.
+      (Agent-to-Agent) protocol by any A2A-capable client (for example an n8n
+      workflow, Microsoft Copilot Studio, or another agent).
 
       Keep replies short, warm and clear (1-3 sentences). When greeted, greet
       back and briefly state that you are a kagent agent answering over A2A. If
-      asked who or what you are, explain you are a kagent-hosted demo agent that
-      an n8n workflow reached over the A2A protocol.
+      asked who or what you are, explain you are a kagent-hosted demo agent
+      reachable over the A2A protocol. Do not assume which tool or client is
+      calling you unless the caller tells you.
     a2aConfig:
       skills:
         - id: a2a-greeting
