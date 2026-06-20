@@ -1,16 +1,9 @@
 # Implementation Plan: n8n ⇄ kagent A2A Demo
 
-> **WSL2 networking follow-up (RESOLVED & validated):** On Docker Desktop + WSL2
-> (default IPv4-only NAT), IPv4-only Kind pods cannot reach a stock **dual-stack**
-> Ollama (`[::]:11434`) — the WSL2 NAT-mode mirror only forwards IPv4 sockets.
-> **Fix applied:** bind Ollama to IPv4 via a systemd drop-in
-> `OLLAMA_HOST=127.0.0.1:11434`, named `zz-ipv4.conf` so it overrides the stock
-> `override.conf` (systemd merges *.d alphabetically; last wins). `20-ollama-up.sh`
-> applies/verifies this automatically (sudo prompt) and is idempotent.
-> **Verified end-to-end:** `ss` shows `127.0.0.1:11434`; pod→`192.168.65.254:11434`
-> HTTP 200; `make up` idempotent (no sudo prompt once bound); `make demo` A2A
-> round-trip returns `state: completed` with the agent's prose reply. No-Ollama-change
-> alternative (WSL mirrored networking) documented. (commits `90db268`→`9cab87e`)
+> **Docker Desktop + WSL2 networking:** the IPv4-only NAT gotcha (stock dual-stack
+> Ollama is unreachable from Kind pods) is resolved by binding Ollama to IPv4 in
+> `20-ollama-up.sh`. See [`docs/troubleshooting.md`](docs/troubleshooting.md) for the
+> full explanation and fix.
 
 ## Problem Statement
 
@@ -37,10 +30,10 @@ requirement; platform differences are handled by an OS-detection layer.
 | 1 | kagent natively exposes agents over A2A | ✅ Validated | A2A endpoint on controller port **8083**, path `/api/a2a/{namespace}/{agent}`; agent card served per agent |
 | 2 | kagent supports a **pluggable LLM** incl. OpenAI-compatible | ✅ Validated in source | `ModelConfig` (`kagent.dev/v1alpha2`) `provider` ∈ {OpenAI, AzureOpenAI, Ollama, Anthropic, Gemini}; **`openAI.baseUrl` overrides the OpenAI base URL** → any OpenAI-compatible endpoint (e.g. MS/Azure Foundry); `ollama.host` for local |
 | 3 | kagent installs via Helm OCI chart + CRDs | ✅ Validated | `oci://ghcr.io/kagent-dev/kagent/helm/kagent` and `.../kagent-crds`; also `kagent` CLI |
-| 4 | n8n has an A2A **client** node | ✅ Validated | Community node `@agentic-layer/n8n-nodes-a2a` — "Send Message" op, JSON-RPC 2.0, **synchronous**, requires **n8n ≥ 1.60.0**, no auth yet |
+| 4 | n8n has an A2A **client** node | ✅ Validated | Community node `@agentic-layer/n8n-nodes-a2a` — "Send Message" op, JSON-RPC 2.0, **synchronous**, requires **n8n ≥ 1.60.0** (demo pins **`n8nio/n8n:2.26.8`**), no auth yet |
 | 5 | Agent-card discovery path | ✅ **Validated in source** | Both sides use `/.well-known/agent-card.json`; kagent (`a2a-go/v2 v2.3.1`) suffix-matches it under the agent route; n8n credential test hits `{serverUrl}/.well-known/agent-card.json`. Old `agent.json` was legacy. Only a runtime smoke test remains |
 | 6 | n8n container (Docker Compose) can reach Kind-hosted kagent | ✅ **Mechanism validated** | Controller Service `ClusterIP:8083`, type overridable → `controller.service.type=NodePort` + Kind `extraPortMappings` + `a2aBaseUrl`; n8n reaches via `extra_hosts: host.docker.internal:host-gateway`. Only live connectivity confirmation remains |
-| 7 | Smallest CPU tool-calling model | ⚠️ Verify at runtime | Default `llama3.2:1b` (supports tools); fallback `qwen2.5:1.5b`. Tiny models tool-call unreliably — validate the agent actually invokes skills |
+| 7 | Smallest CPU tool-calling model | ✅ Resolved at runtime | **Default `qwen2.5:1.5b`** (promoted from fallback — `llama3.2:1b` tool-called too unreliably on CPU). Override via `LLM_MODEL` in `.env` |
 
 ## Environment Decisions (confirmed with user)
 
@@ -63,7 +56,7 @@ flowchart LR
         direction TB
 
         subgraph LLM["LLM backend (pluggable)"]
-            MODEL["Default: Ollama on WSL host\nbound 0.0.0.0:11434 (e.g. llama3.2:1b)\n— OR —\nany OpenAI-compatible endpoint\n(e.g. MS/Azure AI Foundry)"]
+            MODEL["Default: Ollama on WSL host\nbound IPv4 127.0.0.1:11434 (e.g. qwen2.5:1.5b)\n— OR —\nany OpenAI-compatible endpoint\n(e.g. MS/Azure AI Foundry)"]
         end
 
         subgraph Compose["Docker Compose"]
@@ -104,7 +97,7 @@ The LLM is **not hard-wired to Ollama**. kagent reaches it via a single
 | `.env` key | Meaning |
 |------------|---------|
 | `LLM_PROVIDER` | `ollama` (default) \| `openai` \| `azureOpenAI` |
-| `LLM_MODEL` | model/deployment name (e.g. `llama3.2:1b`, `gpt-4o-mini`) |
+| `LLM_MODEL` | model/deployment name (e.g. `qwen2.5:1.5b`, `gpt-4o-mini`) |
 | `LLM_ENDPOINT` | base URL / host (Ollama host **or** OpenAI-compatible `baseUrl` **or** Azure endpoint) |
 | `LLM_API_KEY` | API key for hosted endpoints (stored as a k8s Secret; empty for Ollama) |
 
@@ -113,8 +106,10 @@ The LLM is **not hard-wired to Ollama**. kagent reaches it via a single
   (overrides default)"), plus a first-class `AzureOpenAI` provider
   (`azureEndpoint`/`azureDeployment`/`apiVersion`). Switching is a `.env` change +
   re-apply of the ModelConfig — no code changes.
-- **Default = local Ollama (the only path needing host plumbing).** Bind Ollama with
-  `OLLAMA_HOST=0.0.0.0:11434`; set `LLM_ENDPOINT` to an address routable from pods.
+- **Default = local Ollama (the only path needing host plumbing).** Bind Ollama to an
+  address routable from pods (`0.0.0.0:11434`, or **IPv4 `127.0.0.1:11434`** on
+  Docker Desktop + WSL2 IPv4-only NAT — see the resolved follow-up above); set
+  `LLM_ENDPOINT` accordingly.
   **No CoreDNS patching** — `LLM_ENDPOINT` is injected straight into the ModelConfig.
   If unset for the `ollama` provider, the script auto-derives a **platform-aware**
   candidate set and probes each from an in-cluster pod, picking the first that works:
@@ -152,31 +147,36 @@ kagent-n8n/
 │   ├── lib.sh                    # shared helpers + OS layer (uname; portable sed/grep)
 │   ├── 00-preflight.sh           # detect OS/arch (Linux/WSL2/macOS); verify docker, resources
 │   ├── 10-install-tools.sh       # kubectl, kind, helm, ollama via brew (macOS) / curl (Linux)
-│   ├── 20-ollama-up.sh           # (ollama provider only) OLLAMA_HOST=0.0.0.0 serve + pull model
+│   ├── 20-ollama-up.sh           # (ollama provider only) IPv4-bind serve + pull model
 │   ├── 30-kind-up.sh             # create Kind cluster w/ port mappings
 │   ├── 35-llm-config.sh          # resolve/verify LLM_ENDPOINT per provider (no CoreDNS)
 │   ├── 40-kagent-install.sh      # CRDs + helm install kagent controller/UI
-│   ├── 50-kagent-agent-apply.sh  # ModelConfig (templated by provider) + Agent CRs
-│   ├── 60-n8n-up.sh              # docker compose up + install A2A node
-│   ├── 70-import-workflow.sh     # import/activate n8n A2A workflow
+│   ├── 50-kagent-agent-apply.sh  # ModelConfig (rendered inline per provider) + Agent CRs
+│   ├── 55-verify-a2a.sh          # runtime smoke test: agent card + message/send
+│   ├── 60-n8n-up.sh              # docker compose up + install A2A node + provision owner/skip survey
+│   ├── 70-import-workflow.sh     # import/activate n8n A2A workflow + credentials
 │   ├── 90-demo-run.sh            # trigger workflow, print A2A response
+│   ├── 95-open-ui.sh             # open the n8n editor on the imported workflow
+│   ├── 97-logs.sh                # tail kagent controller + n8n logs
+│   ├── 98-status.sh              # status of clusters, pods, containers, LLM endpoint
 │   └── 99-teardown.sh            # tear everything down
 ├── kind/
-│   └── cluster.yaml              # Kind config w/ extraPortMappings (A2A :8083)
+│   └── cluster.yaml              # Kind config w/ extraPortMappings (A2A NodePort)
 ├── kagent/
-│   ├── modelconfig.tmpl.yaml     # ModelConfig CR templated by provider (ollama/openai/azure)
-│   └── agent.yaml                # Agent CR with a2aConfig.skills
+│   └── agent.yaml                # Agent CR with a2aConfig.skills (sed-rendered)
 ├── n8n/
-│   ├── docker-compose.yaml       # n8n service (+ community node env)
+│   ├── docker-compose.yaml       # n8n service (pinned n8nio/n8n:2.26.8 + community node env)
 │   └── workflows/
-│       └── a2a-demo.json         # n8n workflow using the A2A node
+│       ├── a2a-demo.json         # n8n workflow using the A2A node
+│       └── a2a-credentials.json  # A2A credential (kagent agent URL) imported separately
 └── docs/
     └── troubleshooting.md        # agent-card path, networking, model tips
 ```
 
 ## Tasks (Ralph-loop units)
 
-Each task is independently implementable and verifiable. Dependencies are tracked in SQL.
+Each task is independently implementable and verifiable; dependency order is reflected
+in the sequence below.
 Check off each box (`[ ]` → `[x]`) as a task is completed so the Ralph loop knows what's done.
 
 1. [x] **scaffold-repo** — Create directory layout, `.env.example`, `README` skeleton,
@@ -199,11 +199,11 @@ Check off each box (`[ ]` → `[x]`) as a task is completed so the Ralph loop kn
    both platforms; re-run is a no-op.
 
 4. [x] **ollama-up** — `20-ollama-up.sh` (**runs only when `LLM_PROVIDER=ollama`**;
-   no-op for hosted providers): start `ollama serve` with
-   **`OLLAMA_HOST=0.0.0.0:11434`** (so Kind pods can reach it, not just loopback) and
-   pull `LLM_MODEL` once. Use the OS-appropriate way to launch/keep it running.
-   *Verify:* `curl :11434/api/tags` lists the model; listener on `0.0.0.0`; re-run
-   does not re-pull.
+   no-op for hosted providers): start `ollama serve` bound to an address Kind pods can
+   reach — **`OLLAMA_HOST=0.0.0.0:11434`**, or **IPv4 `127.0.0.1:11434`** on Docker
+   Desktop + WSL2 (IPv4-only NAT) via the idempotent `zz-ipv4.conf` systemd drop-in —
+   and pull `LLM_MODEL` once. *Verify:* `curl :11434/api/tags` lists the model;
+   listener bound as expected; re-run does not re-pull.
 
 5. [x] **kind-up** — `30-kind-up.sh` + `kind/cluster.yaml`: create Kind cluster (named)
    with `extraPortMappings` exposing the kagent A2A NodePort to the host. Skip if the
@@ -228,35 +228,40 @@ Check off each box (`[ ]` → `[x]`) as a task is completed so the Ralph loop kn
    `ModelConfig` in the next task. Wait for controller/UI rollout. *Verify:* pods
    Ready; A2A NodePort reachable from the host; re-run upgrades idempotently.
 
-8. [x] **kagent-agent** — `50-kagent-agent-apply.sh` + `kagent/modelconfig.tmpl.yaml`
-   + `kagent/agent.yaml`: render a **provider-agnostic `ModelConfig`** from `.env`
-   (`provider`/`model` + `ollama.host` **or** `openAI.baseUrl` **or** `azureOpenAI.*`),
-   create the API-key `Secret` when `LLM_API_KEY` is set, then apply the `Agent` CR
-   (with `a2aConfig.skills`) referencing that ModelConfig. *Verify:* `kubectl get
-   agent` Ready; agent card retrievable from the A2A endpoint
-   (`curl .../.well-known/agent-card.json`).
+8. [x] **kagent-agent** — `50-kagent-agent-apply.sh` + `kagent/agent.yaml`: render a
+   **provider-agnostic `ModelConfig`** from `.env` (`provider`/`model` + `ollama.host`
+   **or** `openAI.baseUrl` **or** `azureOpenAI.*`) — the per-provider YAML is generated
+   **inline via a `case`** in the script. Create the API-key `Secret` when `LLM_API_KEY`
+   is set, then apply the `Agent` CR (with `a2aConfig.skills`) referencing that
+   ModelConfig. *Verify:* `kubectl get agent` Ready; agent card retrievable from the A2A
+   endpoint (`curl .../.well-known/agent-card.json`).
 
-9. [x] **verify-a2a-endpoint** — Runtime smoke test (path & wire shape already validated
-   in source, see findings). Confirm the live agent card is served at
-   `{agentURL}/.well-known/agent-card.json` and a raw `curl` JSON-RPC `message/send`
-   (no version header → legacy v0) returns a response. *Verify:* a manual `curl`
-   round-trip returns an agent answer.
+9. [x] **verify-a2a-endpoint** — `55-verify-a2a.sh`: runtime smoke test (path & wire
+   shape already validated in source, see findings). Confirm the live agent card is
+   served at `{agentURL}/.well-known/agent-card.json` and a raw `curl` JSON-RPC
+   `message/send` (no version header → legacy v0) returns a response. *Verify:* a
+   manual `curl` round-trip returns an agent answer.
 
 10. [x] **n8n-up** — `60-n8n-up.sh` + `n8n/docker-compose.yaml`: bring up n8n (pinned
-   ≥1.60.0) with the `@agentic-layer/n8n-nodes-a2a` community node installed and
-   `extra_hosts: ["host.docker.internal:host-gateway"]` so it can reach the
-   Kind-published A2A NodePort on the WSL host. *Verify:* n8n UI loads; A2A node
-   appears; `host.docker.internal:<nodePort>` reachable from inside the container;
-   re-run is idempotent.
+    **`n8nio/n8n:2.26.8`**) with the `@agentic-layer/n8n-nodes-a2a` community node
+    installed and `extra_hosts: ["host.docker.internal:host-gateway"]` so it can reach
+    the Kind-published A2A NodePort on the host. n8n 2.x can't disable login
+    (`N8N_USER_MANAGEMENT_DISABLED` is ignored), so the script **auto-provisions the
+    owner** via `/rest/owner/setup` (`N8N_OWNER_*` from `.env`) **and dismisses the
+    "Customize n8n" personalization survey** via `/rest/me/survey` — both idempotent —
+    so the demo logs straight in. *Verify:* n8n UI loads; A2A node appears; owner login
+    works with no setup wizard or survey popup; re-run is idempotent.
 
-11. [x] **n8n-workflow** — `n8n/workflows/a2a-demo.json` + `70-import-workflow.sh`:
+11. [x] **n8n-workflow** — `n8n/workflows/a2a-demo.json` +
+    `n8n/workflows/a2a-credentials.json` + `70-import-workflow.sh`:
     a **visually presentable** workflow built for live demoing in the n8n editor —
     a Manual Trigger → A2A "Send Message" node → a Set/NoOp node that surfaces the
     response, with clearly labeled nodes, a sticky-note title, and a clean
-    left-to-right layout on the canvas. Configures A2A credentials (kagent agent
-    URL = `host.docker.internal:<nodePort>/api/a2a/kagent/<agent>`). Import +
-    activate idempotently. *Verify:* opening n8n shows the workflow laid out on the
-    canvas; it runs from the editor's "Execute Workflow" button.
+    left-to-right layout on the canvas. The A2A credential (kagent agent
+    URL = `host.docker.internal:<nodePort>/api/a2a/kagent/<agent>`) is imported from a
+    **separate `a2a-credentials.json`**. Import + activate idempotently. *Verify:*
+    opening n8n shows the workflow laid out on the canvas; it runs from the editor's
+    "Execute Workflow" button.
 
 12. [x] **demo-run** — `90-demo-run.sh`: headless replay path — trigger the workflow
     (CLI/webhook), capture and pretty-print the A2A response proving n8n↔kagent
@@ -286,10 +291,10 @@ Check off each box (`[ ]` → `[x]`) as a task is completed so the Ralph loop kn
 
 ## Key Risks & Mitigations
 
-- **Tiny local model can't tool-call reliably (default Ollama path):** default
-  `llama3.2:1b`; if the agent fails to invoke skills, bump to `qwen2.5:1.5b` (still
-  small) via `LLM_MODEL` in `.env`. Hosted OpenAI-compatible backends (e.g. MS/Azure
-  Foundry) avoid this entirely — selected by `LLM_PROVIDER`.
+- **Tiny local model can't tool-call reliably (default Ollama path):** default is
+  **`qwen2.5:1.5b`** (promoted from fallback after `llama3.2:1b` proved unreliable at
+  tool-calling on CPU); override via `LLM_MODEL` in `.env`. Hosted OpenAI-compatible
+  backends (e.g. MS/Azure Foundry) avoid this entirely — selected by `LLM_PROVIDER`.
 - **Idempotency:** every script guards with existence checks and `wait_for`
   helpers; Make targets are safe to re-run.
 - **Cross-platform portability (Linux/WSL2/macOS):** a `uname`-based OS layer in
@@ -302,6 +307,9 @@ Check off each box (`[ ]` → `[x]`) as a task is completed so the Ralph loop kn
 ## Out of Scope
 
 - Authentication on the A2A channel (n8n node does not support it yet).
+- Disabling n8n login — n8n 2.x ignores `N8N_USER_MANAGEMENT_DISABLED`, so the demo
+  instead **auto-provisions a documented owner and dismisses the personalization
+  survey** rather than removing the login.
 - Streaming / long-running task polling (node is synchronous MVP).
 - kagent → n8n (reverse) direction; bidirectional flows.
 - Production hardening, ingress/TLS, multi-node clusters.

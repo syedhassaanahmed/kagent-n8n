@@ -113,7 +113,8 @@ http://host.docker.internal:30883/api/a2a/kagent/a2a-demo-agent
 2. `make open-ui` — opens `http://localhost:5678/workflow/a2a-demo` in the editor
    and prints the demo login. n8n requires a login (it can't be disabled), but the
    owner account is **auto-provisioned** during `make up`, so you skip the "Set up
-   owner account" wizard and just sign in with the documented demo credentials:
+   owner account" wizard and the "Customize n8n to you" personalization popup, and
+   just sign in with the documented demo credentials:
    - email: `demo@example.com`
    - password: `DemoPassw0rd`
 
@@ -129,4 +130,4 @@ See [`docs/troubleshooting.md`](./docs/troubleshooting.md) for networking notes
 
 ## License
 
-Demo project — see repository for details.
+Released under the [MIT License](./LICENSE).

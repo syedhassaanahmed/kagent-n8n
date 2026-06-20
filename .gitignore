@@ -10,11 +10,6 @@
 *-secret.yaml
 secrets/
 
-# Generated / rendered manifests
-*.gen.yaml
-*.rendered.yaml
-kagent/modelconfig.yaml
-
 # n8n local data (Docker Compose volume)
 n8n/.n8n/
 n8n/data/

@@ -93,4 +93,41 @@ ensure_owner() {
 }
 ensure_owner
 
+# --- personalization survey -------------------------------------------------
+# After owner setup, n8n shows a "Customize n8n to you" personalization modal
+# on first login while the owner's personalizationAnswers are null. Pre-submit
+# the survey via the authenticated API so the demo skips the popup.
+# Idempotent: only submits while personalizationAnswers is still null.
+ensure_survey_dismissed() {
+  local base="http://localhost:${PORT}"
+  local email="${N8N_OWNER_EMAIL:-demo@example.com}"
+  local pass="${N8N_OWNER_PASSWORD:-DemoPassw0rd}"
+  local jar answers code
+  jar="$(mktemp)"
+  trap 'rm -f "$jar"' RETURN
+  # Log in to obtain a session cookie; the login response also carries the
+  # current user, including personalizationAnswers.
+  answers="$(curl -fsS --max-time 10 -c "$jar" -X POST "${base}/rest/login" \
+    -H 'Content-Type: application/json' \
+    -d "{\"emailOrLdapLoginId\":\"${email}\",\"password\":\"${pass}\"}" 2>/dev/null \
+    | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"].get("personalizationAnswers"))' 2>/dev/null || echo unknown)"
+  if [ "$answers" = "unknown" ]; then
+    warn "could not log in to check personalization survey; dismiss the popup manually if it appears"
+    return 0
+  fi
+  if [ "$answers" != "None" ]; then
+    ok "n8n personalization survey already dismissed"
+    return 0
+  fi
+  log "dismissing n8n personalization survey (skips the 'Customize n8n' popup)..."
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -b "$jar" \
+    -X POST "${base}/rest/me/survey" -H 'Content-Type: application/json' \
+    -d "{\"version\":\"v4\",\"personalization_survey_n8n_version\":\"2.26.8\",\"personalization_survey_submitted_at\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"}")"
+  case "$code" in
+    200|201) ok "n8n personalization survey dismissed" ;;
+    *) warn "survey dismissal returned HTTP ${code}; dismiss the popup manually if it appears" ;;
+  esac
+}
+ensure_survey_dismissed
+
 ok "n8n editor: http://localhost:${PORT}"
