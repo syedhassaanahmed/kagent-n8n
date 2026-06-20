@@ -258,7 +258,7 @@ Check off each box (`[ ]` → `[x]`) as a task is completed so the Ralph loop kn
     printed URL opens the workflow; a manual "Execute Workflow" click animates the
     nodes and shows the agent response in the output panel.
 
-14. [ ] **make-orchestration** — Flesh out `Makefile`: `make up` (full idempotent
+14. [x] **make-orchestration** — Flesh out `Makefile`: `make up` (full idempotent
     bring-up in order), `make demo` (headless replay), `make open-ui` (visual
     demo), `make status`, `make logs`, `make down` (teardown), `make help`.
     *Verify:* `make up && make demo` works end-to-end; second `make up` is a no-op.
