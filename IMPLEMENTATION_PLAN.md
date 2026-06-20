@@ -250,7 +250,7 @@ Check off each box (`[ ]` → `[x]`) as a task is completed so the Ralph loop kn
     (CLI/webhook), capture and pretty-print the A2A response proving n8n↔kagent
     communication. *Verify:* script prints a model-generated answer from the kagent agent.
 
-13. [ ] **ui-demo** — `make open-ui` target + `docs` walkthrough: open the n8n editor
+13. [x] **ui-demo** — `make open-ui` target + `docs` walkthrough: open the n8n editor
     directly on the imported workflow so the customer can **visually watch** the
     A2A node execute live (node turns green, execution badges appear) and read the
     kagent agent's reply in the node's output panel. Optionally open the kagent UI
