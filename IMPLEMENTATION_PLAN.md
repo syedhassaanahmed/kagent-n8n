@@ -209,7 +209,7 @@ Check off each box (`[ ]` → `[x]`) as a task is completed so the Ralph loop kn
    on error. *Verify:* resolved values in `.env` and a test pod reaches the endpoint
    on Linux and macOS; re-run is idempotent.
 
-7. [ ] **kagent-install** — `40-kagent-install.sh`: install `kagent-crds` + `kagent`
+7. [x] **kagent-install** — `40-kagent-install.sh`: install `kagent-crds` + `kagent`
    Helm OCI charts (controller + UI). Set `controller.service.type=NodePort` (fixed
    nodePort) and `a2aBaseUrl` to the host-reachable URL so the agent card `url` is
    correct. The LLM is **not** wired here — it's applied as a provider-agnostic
