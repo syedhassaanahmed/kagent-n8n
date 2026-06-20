@@ -150,6 +150,11 @@ Tiny CPU models are convenient but unreliable at structured/tool output:
 ```bash
 make status                       # host / Ollama / Kind / kagent / n8n at a glance
 make logs                         # kagent controller + agent + n8n logs
+make open-ui                      # open the n8n editor + kagent UI in a browser
 kubectl --context kind-kagent-n8n -n kagent get agent,modelconfig
 curl -s http://localhost:30883/api/a2a/kagent/a2a-demo-agent/.well-known/agent-card.json | jq .
+
+# Open just the kagent UI manually (Ctrl-C to stop the forward):
+kubectl --context kind-kagent-n8n -n kagent port-forward svc/kagent-ui 8080:8080
+# then browse http://localhost:8080
 ```

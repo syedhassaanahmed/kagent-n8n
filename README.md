@@ -29,7 +29,7 @@ OpenAI-compatible endpoint by config only.
 cp .env.example .env      # optional; scripts auto-create .env on first run
 make up                   # idempotent end-to-end bring-up
 make demo                 # headless: trigger the workflow, print the A2A reply
-make open-ui              # visual: open the n8n editor to run it live
+make open-ui              # visual: open the n8n editor (+ kagent UI) to run it live
 make down                 # tear everything down
 ```
 
@@ -91,7 +91,7 @@ http://host.docker.internal:30883/api/a2a/kagent/a2a-demo-agent
 |--------|--------------|
 | `make up` | Full idempotent bring-up (preflight → tools → ollama → kind → llm-config → kagent → agent → verify → n8n → workflow) |
 | `make demo` | Headless: trigger the workflow and pretty-print the kagent A2A reply |
-| `make open-ui` | Open the n8n editor on the imported workflow for a live, visual run |
+| `make open-ui` | Open the n8n editor on the imported workflow, plus the kagent UI (via a background port-forward), for a live, visual run |
 | `make status` | One-glance status of host, Ollama, Kind, kagent and n8n |
 | `make logs` | Tail kagent controller, agent, and n8n logs |
 | `make down` | Tear everything down |
@@ -101,7 +101,9 @@ http://host.docker.internal:30883/api/a2a/kagent/a2a-demo-agent
 
 1. `make up` — brings the whole stack up idempotently (safe to re-run).
 2. `make open-ui` — opens `http://localhost:5678/workflow/a2a-demo` in the editor
-   and prints the demo login. n8n requires a login (it can't be disabled), but the
+   and prints the demo login. It also opens the **kagent UI** at
+   `http://localhost:8080` (via a background `kubectl port-forward`) so you can watch
+   the agent side. n8n requires a login (it can't be disabled), but the
    owner account is **auto-provisioned** during `make up`, so you skip the "Set up
    owner account" wizard and the "Customize n8n to you" personalization popup, and
    just sign in with the documented demo credentials:

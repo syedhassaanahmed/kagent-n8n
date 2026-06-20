@@ -267,13 +267,15 @@ Check off each box (`[ ]` → `[x]`) as a task is completed so the Ralph loop kn
     (CLI/webhook), capture and pretty-print the A2A response proving n8n↔kagent
     communication. *Verify:* script prints a model-generated answer from the kagent agent.
 
-13. [x] **ui-demo** — `make open-ui` target + `docs` walkthrough: open the n8n editor
-    directly on the imported workflow so the customer can **visually watch** the
-    A2A node execute live (node turns green, execution badges appear) and read the
-    kagent agent's reply in the node's output panel. Optionally open the kagent UI
-    (`:8080`) side-by-side to show the agent receiving the call. *Verify:* the
-    printed URL opens the workflow; a manual "Execute Workflow" click animates the
-    nodes and shows the agent response in the output panel.
+13. [x] **ui-demo** — `make open-ui` (`95-open-ui.sh`) + `docs` walkthrough: open the
+    n8n editor directly on the imported workflow so the customer can **visually watch**
+    the A2A node execute live (node turns green, execution badges appear) and read the
+    kagent agent's reply in the node's output panel. Also opens the **kagent UI** via a
+    best-effort background `kubectl port-forward svc/kagent-ui` (`:8080`) so the agent
+    side is visible side-by-side (idempotent; non-fatal if the cluster/kubectl is
+    absent; teardown cleans up the forward). *Verify:* the printed URL opens the
+    workflow; a manual "Execute Workflow" click animates the nodes and shows the agent
+    response in the output panel.
 
 14. [x] **make-orchestration** — Flesh out `Makefile`: `make up` (full idempotent
     bring-up in order), `make demo` (headless replay), `make open-ui` (visual

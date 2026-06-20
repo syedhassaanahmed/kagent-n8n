@@ -42,6 +42,15 @@ else
   log "no n8n compose file yet — skipping"
 fi
 
+# --- stray kagent UI port-forward (best-effort) ---------------------------
+# `make open-ui` may leave a background `kubectl port-forward svc/kagent-ui`.
+# It would exit on its own once the cluster is gone, but clean it up proactively.
+if have_cmd pkill; then
+  if pkill -f 'port-forward.*svc/kagent-ui' 2>/dev/null; then
+    ok "stopped kagent UI port-forward"
+  fi
+fi
+
 # --- Kind cluster ---------------------------------------------------------
 if have_cmd kind; then
   if kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; then

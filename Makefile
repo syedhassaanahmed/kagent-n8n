@@ -23,7 +23,7 @@ up: preflight tools ollama kind llm-config kagent-install kagent-agent verify-a2
 demo: ## Headless replay: trigger the n8n workflow and print the A2A response
 	@bash $(S)/90-demo-run.sh
 
-open-ui: ## Open the n8n editor on the imported A2A workflow (visual demo)
+open-ui: ## Open the n8n editor (+ kagent UI) for a visual demo
 	@bash $(S)/95-open-ui.sh
 
 status: ## Show status of clusters, pods, containers and the LLM endpoint
