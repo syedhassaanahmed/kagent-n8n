@@ -64,28 +64,18 @@ n8n (A2A client, in Docker Compose) sends JSON-RPC `message/send` to the kagent
 controller (A2A server, in a Kind cluster). The controller routes to the `Agent` CR,
 which calls the LLM selected by its `ModelConfig` CR. The response flows back to n8n.
 
-```mermaid
-flowchart LR
-    subgraph Host["Unix host (Linux / WSL2 / macOS)"]
-        direction TB
-        subgraph Compose["Docker Compose"]
-            N8N["n8n (:5678)\n@agentic-layer/n8n-nodes-a2a\n(A2A client)"]
-        end
-        subgraph Kind["Kind cluster (Docker)"]
-            subgraph KNS["namespace: kagent"]
-                CTRL["kagent controller\nA2A server :8083\n/api/a2a/kagent/{agent}"]
-                AGENT["Agent CR\n(a2aConfig.skills)"]
-                MODELCFG["ModelConfig CR\nprovider: ollama | openai | azureOpenAI"]
-            end
-        end
-        MODEL["LLM backend (pluggable)\nOllama (default) or any\nOpenAI-compatible endpoint"]
-    end
-
-    N8N -- "A2A JSON-RPC 2.0\n(agent card + message/send)" --> CTRL
-    CTRL --> AGENT
-    AGENT -- "uses" --> MODELCFG
-    MODELCFG -- "${LLM_ENDPOINT}" --> MODEL
 ```
+┌──────────────┐      A2A protocol       ┌──────────────┐      asks      ┌──────────────┐
+│     n8n      │  ───────────────────▶   │    kagent    │  ──────────▶   │     LLM      │
+│  workflow    │     "send message"      │    agent     │                │  (Ollama or  │
+│ (A2A client) │  ◀───────────────────   │ (A2A server) │  ◀──────────   │  OpenAI-API) │
+└──────────────┘        reply            └──────────────┘     answer     └──────────────┘
+   Docker Compose          Kubernetes (Kind cluster)         local model or hosted endpoint
+```
+
+n8n asks a question over A2A; the kagent agent answers using whatever LLM it's
+configured with. **n8n never talks to the LLM directly** — that's a kagent concern,
+selected entirely by the `ModelConfig` CR.
 
 The A2A endpoint is published to the host on `KAGENT_A2A_NODEPORT` (default `30883`)
 via a Kind `extraPortMapping`. The n8n container reaches it through
